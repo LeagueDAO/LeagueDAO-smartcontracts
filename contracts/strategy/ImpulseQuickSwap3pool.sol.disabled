@@ -1,0 +1,670 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.6;
+
+import "../../interfaces/external/IStakingRewards.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "../../interfaces/external/IUniswapV2Router01.sol";
+
+contract ImpulseQuickSwap3pool is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+    using SafeERC20 for IERC20;
+
+    bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
+    bytes32 public constant BACKEND_ROLE = keccak256("BACKEND_ROLE");
+    uint256 internal constant DUST = 1e12;
+
+    ///@notice Total number of staked lp tokens.
+    uint256 public wantTotal;
+    ///@notice Total number of staked lp tokens (amount for each).
+    uint256[] public wantTotalForEach;
+    ///@notice Total number of staked lp tokens without reward.
+    uint256 internal totalSupplyShares;
+    ///@notice Array of underlyings for which LP tokens will be bought.
+    IERC20[] public underlyings;
+    ///@notice Array of want(LP) tokens.
+    IERC20[] public wantTokens;
+    ///@notice Array of reward tokens.
+    IERC20[] public rewardTokens;
+    ///@notice Array of pools for lp tokens stake.
+    address[] public pools;
+    /// @notice Swap router address.
+    address public router;
+
+    // fromToken => toToken => path
+    mapping(address => mapping(address => address[])) public swapUnderlyingRoutes;
+
+    // fromToken => toToken => path
+    mapping(address => mapping(address => address[])) public swapRewardRoutes;
+
+    event Deposit(uint256 amount, uint256 shares, uint256 wantTotal, uint256 sharesTotal);
+    event Withdraw(uint256 amount, uint256 shares, uint256 wantTotal, uint256 sharesTotal);
+    event Earning(uint256[] earned, uint256 wantTotal, uint256 sharesTotal);
+    event AdminWithdraw(address token, uint256 amount);
+
+    function initialize(
+        address[] memory _underlyings,
+        address[] memory _wantTokens,
+        address[] memory _pools,
+        address[] memory _rewardTokens,
+        address _router
+    ) public virtual initializer {
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        __ReentrancyGuard_init();
+
+        underlyings = new IERC20[](_underlyings.length);
+        for (uint256 i = 0; i < _underlyings.length; i++) {
+            underlyings[i] = IERC20(_underlyings[i]);
+        }
+        wantTokens = new IERC20[](_wantTokens.length);
+        for (uint256 i = 0; i < _wantTokens.length; i++) {
+            wantTokens[i] = IERC20(_wantTokens[i]);
+        }
+        pools = new address[](_pools.length);
+        for (uint256 i = 0; i < _pools.length; i++) {
+            pools[i] = address(_pools[i]);
+        }
+        rewardTokens = new IERC20[](_rewardTokens.length);
+        for (uint256 i = 0; i < _rewardTokens.length; i++) {
+            rewardTokens[i] = IERC20(_rewardTokens[i]);
+        }
+
+        router = _router;
+        wantTotalForEach = new uint256[](wantTokens.length);
+    }
+
+    /**
+     * ADMIN INTERFACE
+     */
+
+    /// @notice Admin method for withdraw stuck tokens, except want.
+    function adminWithdraw(address _token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            require(_token != address(wantTokens[i]), "Wrong token");
+        }
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            require(_token != address(underlyings[i]), "Wrong token");
+        }
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(_token).transfer(_msgSender(), balance);
+        }
+        emit AdminWithdraw(_token, balance);
+    }
+
+    /// @notice Sets router address.
+    /// @dev Can only be called by admin.
+    /// @param _router Address of swap router.
+    function setRouter(address _router) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        router = _router;
+    }
+
+    /// @notice Add route for swapping reward tokens.
+    /// @param _path Full path for swap.
+    function setRewardRoutes(address[] memory _path) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_path.length >= 2, "wrong path");
+        address from = _path[0];
+        address to = _path[_path.length - 1];
+        swapRewardRoutes[from][to] = _path;
+    }
+
+    /// @notice Add route for swapping usd to underlying.
+    /// @param _path Full path for swap.
+    function setUnderlyingRoutes(address[] memory _path) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_path.length >= 2, "wrong path");
+        address from = _path[0];
+        address to = _path[_path.length - 1];
+        swapUnderlyingRoutes[from][to] = _path;
+    }
+
+    /**
+     * USER INTERFACE (FOR STAKING CONTRACT)
+     */
+
+    /// @notice Deposit want (lp) tokens through underlyings.
+    /// @param _amounts Amounts in underlying to stake.
+    function depositInUnderlying(uint256[] calldata _amounts) external nonReentrant onlyRole(STRATEGIST_ROLE) returns (uint256) {
+        require(_amounts.length == underlyings.length, "deposit: wrong amounts");
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            if (_amounts[i] != 0) {
+                IERC20(underlyings[i]).safeTransferFrom(_msgSender(), address(this), _amounts[i]);
+            }
+        }
+
+        uint256 shares = _deposit(_swapAllUnderlyingsToWant(_rebalanceAmounts(_amounts)));
+
+        //The rest of the tokens after first deposit deposited again
+        uint256[] memory amountsRemainder = new uint256[](underlyings.length);
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            amountsRemainder[i] = underlyings[i].balanceOf(address(this));
+        }
+
+        return shares + _deposit(_swapAllUnderlyingsToWant(_rebalanceAmounts(amountsRemainder)));
+    }
+
+    /// @notice Withdraw lp tokens in one of underlyings.
+    /// @param _wantAmount Amount of lp token to withdraw.
+    /// @param _underlying Token to withdraw in.
+    function withdrawInOneUnderlying(uint256 _wantAmount, address _underlying)
+        external
+        nonReentrant
+        onlyRole(STRATEGIST_ROLE)
+        returns (uint256)
+    {
+        require(_wantAmount <= wantTotal && _wantAmount > 0, "Withdraw: wrong value");
+        require(_validateToken(_underlying), "Wrong underlying provided!");
+
+        uint256 shares = (_wantAmount * totalSupplyShares) / wantTotal;
+        uint256[] memory withdrawAmount = new uint256[](wantTokens.length);
+
+        for (uint256 i; i < wantTokens.length; i++) {
+            withdrawAmount[i] = (shares * wantTotalForEach[i]) / totalSupplyShares;
+        }
+
+        // Withdraw tokens from staking contracts
+        _withdraw(withdrawAmount, address(this));
+
+        for (uint256 i; i < wantTokens.length; i++) {
+            wantTotalForEach[i] -= withdrawAmount[i];
+        }
+        wantTotal -= _wantAmount;
+        totalSupplyShares -= shares;
+
+        //Swap all getted want tokens to one underlying
+        _swapAllWantToOneUnderlying(_underlying, _msgSender());
+
+        emit Withdraw(0, shares, wantTotal, totalSupplyShares);
+        return shares;
+    }
+
+    ///@dev Total want tokens managed by strategy.
+    function wantLockedTotal() external view returns (uint256) {
+        return wantTotal;
+    }
+
+    ///@dev Total want tokens managed by strategy.
+    function wantLockedTotalForEach() external view returns (uint256[] memory) {
+        return wantTotalForEach;
+    }
+
+    ///@dev Sum of all users shares to wantLockedTotal.
+    function sharesTotal() external view returns (uint256) {
+        return totalSupplyShares;
+    }
+
+    ///@dev List underlyings managed by strategy.
+    function listUnderlyings() external view returns (address[] memory) {
+        address[] memory result = new address[](underlyings.length);
+        for (uint256 u = 0; u < underlyings.length; u++) {
+            result[u] = address(underlyings[u]);
+        }
+        return result;
+    }
+
+    /// @notice Calculate current price in usd for want (LP tokens of pair).
+    /// @param _wantAmounts Shares amounts.
+    /// @return wantPrices Price of shares in usd (with 18 decimals).
+    function wantPriceInUsd(uint256[] memory _wantAmounts) external view returns (uint256[] memory) {
+        uint256[] memory wantPrices = new uint256[](wantTokens.length);
+        //Here we get the prices for one lp token
+
+        //USDT-MAI price
+        wantPrices[0] =
+            ((underlyings[1].balanceOf(address(wantTokens[0]))) + underlyings[3].balanceOf(address(wantTokens[0]))) /
+            wantTokens[0].totalSupply();
+
+        //USDC-DAI price
+        wantPrices[1] =
+            ((underlyings[0].balanceOf(address(wantTokens[1]))) + underlyings[2].balanceOf(address(wantTokens[1]))) /
+            wantTokens[1].totalSupply();
+
+        //USDC-USDT price
+        wantPrices[2] =
+            ((underlyings[0].balanceOf(address(wantTokens[2]))) + underlyings[1].balanceOf(address(wantTokens[2]))) /
+            wantTokens[2].totalSupply();
+
+        // And here for requested lp tokens amounts
+        for (uint256 i = 0; i < wantPrices.length; i++) {
+            wantPrices[i] *= _wantAmounts[i];
+        }
+        return wantPrices;
+    }
+
+    /**
+     * BACKEND SERVICE INTERFACE
+     */
+
+    ///@notice Main want token compound function.
+    function earn() external nonReentrant onlyRole(BACKEND_ROLE) {
+        //Get rewards from staking contracts
+        _getRewards();
+        uint256[] memory rewardBalances = new uint256[](rewardTokens.length);
+
+        //Continue compund only if reward balances are bigger than dust
+        bool enough = false;
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            rewardBalances[i] = rewardTokens[i].balanceOf(address(this));
+            if (rewardBalances[i] > DUST) {
+                enough = true;
+            }
+        }
+        if (!enough) {
+            return;
+        }
+
+        //Swap rewards to one token (now usdc)
+        _swapRewardsToUnderlyings(rewardBalances);
+
+        uint256[] memory underlyingsBalances = new uint256[](underlyings.length);
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            underlyingsBalances[i] = underlyings[i].balanceOf(address(this));
+        }
+        uint256[] memory wantEarned = new uint256[](wantTokens.length);
+        uint256[] memory rebalanceUnderlyingBalances = new uint256[](underlyings.length);
+
+        //We get rebalanced amounts from amounts received after rewards swap
+        rebalanceUnderlyingBalances = _rebalanceAmounts(underlyingsBalances);
+
+        //Swap rebalanced underlyings to want tokens
+        wantEarned = _swapAllUnderlyingsToWant(rebalanceUnderlyingBalances);
+
+        //Deposit want tokens
+        _depositLpToken(wantEarned);
+
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            wantTotal += wantEarned[i];
+            wantTotalForEach[i] += wantEarned[i];
+        }
+        emit Earning(wantEarned, wantTotal, totalSupplyShares);
+    }
+
+    /// @notice Deposit want tokens to staking contract and calculate shares.
+    /// @param _wantAmounts Amounts in want (lp tokens) to stake.
+    /// @return Amount of shares.
+    function _deposit(uint256[] memory _wantAmounts) internal returns (uint256) {
+        uint256 shares = 0;
+        _depositLpToken(_wantAmounts);
+        uint256 wantTotalSum;
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            if (totalSupplyShares == 0) {
+                shares += _wantAmounts[i];
+            } else {
+                shares += (_wantAmounts[i] * totalSupplyShares) / wantTotal;
+            }
+            wantTotalSum += _wantAmounts[i];
+            wantTotalForEach[i] += _wantAmounts[i];
+        }
+        wantTotal += wantTotalSum;
+        totalSupplyShares += shares;
+
+        emit Deposit(wantTotalSum, shares, wantTotal, totalSupplyShares);
+        return shares;
+    }
+
+    /// @notice Withdraw lp tokens from staking contract.
+    /// @dev Has additional checks before withdraw.
+    function _withdraw(uint256[] memory _wantAmounts, address _receiver) internal {
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            require(_wantAmounts[i] <= wantTotalForEach[i] && _wantAmounts[i] > 0, "Withdraw: wrong value");
+        }
+        require(_receiver != address(0), "Withdraw: receiver is zero address");
+
+        _withdrawLpToken(_wantAmounts);
+    }
+
+    /// @notice Deposit want tokens to staking contract.
+    /// @param _wantAmounts Amounts of want tokens.
+    function _depositLpToken(uint256[] memory _wantAmounts) internal {
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            IERC20(wantTokens[i]).approve(pools[i], 0);
+            IERC20(wantTokens[i]).approve(pools[i], _wantAmounts[i]);
+            IStakingRewards(pools[i]).stake(_wantAmounts[i]);
+        }
+    }
+
+    /// @notice Withdraw want tokens from staking contract.
+    /// @param _wantAmt Amounts of want tokens.
+    function _withdrawLpToken(uint256[] memory _wantAmt) internal {
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            IStakingRewards(pools[i]).withdraw(_wantAmt[i]);
+        }
+    }
+
+    /// @notice Get rewards from staking contracts.
+    function _getRewards() internal {
+        for (uint256 i = 0; i < pools.length; i++) {
+            IStakingRewards(pools[i]).getReward();
+        }
+    }
+
+    ///@notice Check token presence in underlyings.
+    function _validateToken(address _underlying) internal view returns (bool) {
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            if (_underlying == address(underlyings[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * REBALANCE HELPERS
+     */
+    /**
+     * Formula for calculating amounts needed for a balanced deposit in three pools.
+     * On the example where the USDC token is USD token.
+     * USDC - C, USDT - T, DAI - D, MAI - M, a - amount, x - target amount.
+     * DC, TC, MC - token to USDC (usd token) rate.
+     * totalC = Ca + Ta*TC + Da*DC + Ma*MC
+     * x = totalC/(2 + 2TC + DC + MC)
+     * 2 for USDC and USDT since they participate in pools 2 times.
+     */
+
+    /// @notice Rebalance underlyings amounts to get equal parts.
+    /// @param _amounts Amounts in underlyings to rebalance.
+    /// @return rebalanceAmounts Rebalanced by function amounts.
+    function _rebalanceAmounts(uint256[] memory _amounts) internal returns (uint256[] memory rebalanceAmounts) {
+        uint256 biggestAmount;
+        uint256 index;
+
+        //Give a copy of amounts to 18 decimals
+        uint256[] memory amounts = new uint256[](_amounts.length);
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            amounts[i] = _amounts[i];
+            if (i < 2) {
+                amounts[i] *= 10**12;
+            }
+        }
+
+        //Get biggest amount from user _amounts
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            if (amounts[i] > biggestAmount) {
+                biggestAmount = amounts[i];
+                index = i;
+            }
+        }
+
+        //Set usd token according to largest underlying amount for more optimized swap.
+        address usdToken = address(underlyings[index]);
+
+        (uint256[] memory excessAmounts, uint256[] memory missingAmounts) = _getExcessAndMissingAmounts(usdToken, _amounts, index);
+
+        //All excess amounts swap to usd token.
+        _swapUnderlyingsToUSDToken(excessAmounts, usdToken);
+        //Missing amounts buy for usd token.
+        _swapUSDTokenToUnderlyings(missingAmounts, usdToken);
+
+        rebalanceAmounts = new uint256[](underlyings.length);
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            rebalanceAmounts[i] = underlyings[i].balanceOf(address(this));
+        }
+    }
+
+    ///@notice Get by how much to multiply the amount of tokens to get amount in wei.
+    ///@dev For usdc and usdt tokens it's 10**12.
+    ///@dev For mai and dai tokens it's 10**18.
+    function _getTokenDecimalsMultiplier(uint256 _underlyingIndex) internal pure returns (uint256) {
+        if (_underlyingIndex == 0 || _underlyingIndex == 1) {
+            return 10**12;
+        } else {
+            return 1;
+        }
+    }
+
+    ///@notice Get token decimals.
+    ///@dev For usdc and usdt tokens it's 10**6.
+    ///@dev For mai and dai tokens it's 10**18.
+    function _getTokenDecimals(uint256 _underlyingIndex) internal pure returns (uint256) {
+        if (_underlyingIndex == 0 || _underlyingIndex == 1) {
+            return 1 * 10**6;
+        } else {
+            return 1 ether;
+        }
+    }
+
+    ///@dev For usdt and usdc pool multiplier is 2 because they participate in pools 2 times.
+    function _getTokenPoolMultiplier(uint256 _underlyingIndex) internal pure returns (uint256) {
+        if (_underlyingIndex == 0 || _underlyingIndex == 1) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    ///@notice Calculate total amount of underlyings.
+    ///@return underlyingsTotal Amount of underlyings calculated in usd token.
+    function _calculateUnderlyingsTotal(
+        uint256[] memory _amounts,
+        address _usdToken,
+        uint256 _usdIndex
+    ) internal view returns (uint256 underlyingsTotal) {
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            if (i == _usdIndex) {
+                underlyingsTotal += _amounts[i] * _getTokenDecimalsMultiplier(_usdIndex);
+            } else {
+                underlyingsTotal += _getTokenPriceInUsd(i, _amounts[i], _usdToken);
+            }
+        }
+    }
+
+    ///@dev In a simple case, we would divide the underlyingsTotal amount by 6, since we have 6 amounts to buy LP tokens,
+    ///@dev but due to the difference in prices, we get the rate of 1 token to one usd token, sum up,
+    ///@dev and get a proportionally calculated divider.
+    ///@return rebalanceDivider Proportionally calculated divider.
+    function _calculateRebalanceDivider(address _usdToken, uint256 _usdIndex) internal view returns (uint256 rebalanceDivider) {
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            if (_usdIndex == i) {
+                rebalanceDivider += 1 ether * _getTokenPoolMultiplier(i);
+            } else {
+                rebalanceDivider += _getTokenPriceInUsd(i, _getTokenDecimals(i) * _getTokenPoolMultiplier(i), _usdToken);
+            }
+        }
+    }
+
+    ///@notice Get excess and missing amounts of underlyings for swap.
+    ///@dev We don't calculate these amounts for usd token, its amount is rebalanced after calculations.
+    function _getExcessAndMissingAmounts(
+        address _usdToken,
+        uint256[] memory _amounts,
+        uint256 usdIndex
+    ) internal view returns (uint256[] memory excessAmounts, uint256[] memory missingAmounts) {
+        excessAmounts = new uint256[](underlyings.length);
+        missingAmounts = new uint256[](underlyings.length);
+
+        uint256 underlyingsTotal = _calculateUnderlyingsTotal(_amounts, _usdToken, usdIndex);
+        uint256 tokensRebalanceAmount = (underlyingsTotal * (1 ether)) / _calculateRebalanceDivider(_usdToken, usdIndex);
+
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            if (i == usdIndex) continue;
+
+            uint256 tokenDecimalsMultiplier = _getTokenDecimalsMultiplier(i);
+            uint256 targetAmount = (tokensRebalanceAmount * _getTokenPoolMultiplier(i)) / tokenDecimalsMultiplier;
+            if (targetAmount <= _amounts[i]) {
+                excessAmounts[i] = _amounts[i] - targetAmount;
+            } else {
+                missingAmounts[i] = targetAmount - _amounts[i];
+            }
+        }
+    }
+
+    ///@notice Get token to usd token swap rate.
+    function _getTokenPriceInUsd(
+        uint256 _tokenIndex,
+        uint256 _tokenAmount,
+        address _usdToken
+    ) internal view returns (uint256) {
+        if (_tokenAmount == 0) {
+            return 0;
+        }
+        address[] memory path = new address[](2);
+        path[0] = address(underlyings[_tokenIndex]);
+        path[1] = _usdToken;
+        uint256 priceTokenInUSD = IUniswapV2Router01(router).getAmountsOut(_tokenAmount, path)[path.length - 1];
+
+        if (_usdToken == address(underlyings[0]) || _usdToken == address(underlyings[1])) {
+            priceTokenInUSD *= 10**12; // Since USDC and USDT has 6 decimals
+        }
+        return priceTokenInUSD;
+    }
+
+    /**
+     * SWAP HELPERS
+     */
+
+    /// @notice Swap all want tokens to one underlying.
+    function _swapAllWantToOneUnderlying(address _underlying, address _receiver) internal {
+        uint256[] memory wantBalances = new uint256[](wantTokens.length);
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            wantBalances[i] += wantTokens[i].balanceOf(address(this));
+            wantTokens[i].safeApprove(router, wantBalances[i]);
+        }
+
+        //Remove liquidity for USDT-MAI want token (get usdt and mai)
+        IUniswapV2Router01(router).removeLiquidity(
+            address(underlyings[1]),
+            address(underlyings[3]),
+            wantBalances[0],
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        //Remove liquidity for USDC-DAI want token (get usdc and dai)
+        IUniswapV2Router01(router).removeLiquidity(
+            address(underlyings[0]),
+            address(underlyings[2]),
+            wantBalances[1],
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        //Remove liquidity for USDC-USDT want token (get usdc and usdt)
+        IUniswapV2Router01(router).removeLiquidity(
+            address(underlyings[0]),
+            address(underlyings[1]),
+            wantBalances[2],
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        uint256[] memory underlyingsBalances = new uint256[](underlyings.length);
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            underlyings[i].safeApprove(router, 0);
+            underlyingsBalances[i] = underlyings[i].balanceOf(address(this));
+            underlyings[i].safeApprove(router, underlyingsBalances[i]);
+        }
+
+        //Swap getted underlyings to one underlying defined by user
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            if (address(underlyings[i]) == _underlying) continue;
+            _swapTokens(swapUnderlyingRoutes[address(underlyings[i])][_underlying], underlyingsBalances[i]);
+        }
+
+        //Transfer underlying to user
+        IERC20(_underlying).safeTransfer(_receiver, IERC20(_underlying).balanceOf(address(this)));
+    }
+
+    function _swapTokens(address[] memory path, uint256 _amount) internal {
+        IUniswapV2Router01(router).swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp + 1);
+    }
+
+    function _swapTokensForExact(address[] memory path, uint256 _amount) internal {
+        IUniswapV2Router01(router).swapTokensForExactTokens(_amount, type(uint256).max, path, address(this), block.timestamp + 1);
+    }
+
+    /// @notice Swap reward tokens to underlyings.
+    /// @param _rewardAmounts Reward tokens amounts.
+    function _swapRewardsToUnderlyings(uint256[] memory _rewardAmounts) internal {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            if (_rewardAmounts[i] > DUST) {
+                rewardTokens[i].safeApprove(router, 0);
+                rewardTokens[i].safeApprove(router, _rewardAmounts[i]);
+                _swapTokens(swapRewardRoutes[address(rewardTokens[i])][address(underlyings[0])], _rewardAmounts[i]);
+            }
+        }
+    }
+
+    /// @notice Swap excess amounts of underlying tokens to one usd token.
+    function _swapUnderlyingsToUSDToken(uint256[] memory _excessAmounts, address usdToken) internal {
+        for (uint256 i = 0; i < _excessAmounts.length; i++) {
+            underlyings[i].safeApprove(router, 0);
+            underlyings[i].safeApprove(router, _excessAmounts[i]);
+        }
+        for (uint256 u = 0; u < underlyings.length; u++) {
+            if (_excessAmounts[u] == 0 || address(underlyings[u]) == usdToken) continue;
+            _swapTokens(swapUnderlyingRoutes[address(underlyings[u])][usdToken], _excessAmounts[u]);
+        }
+    }
+
+    /// @notice Buy missing amounts of underlying tokens for one usd token.
+    function _swapUSDTokenToUnderlyings(uint256[] memory _missingAmounts, address usdToken) internal {
+        IERC20(usdToken).safeApprove(router, 0);
+        IERC20(usdToken).safeApprove(router, (IERC20(usdToken).balanceOf(address(this))));
+        for (uint256 u = 0; u < underlyings.length; u++) {
+            if (_missingAmounts[u] == 0 || address(underlyings[u]) == usdToken) continue;
+            _swapTokensForExact(swapUnderlyingRoutes[usdToken][address(underlyings[u])], _missingAmounts[u]);
+        }
+    }
+
+    /// @notice Swap all underlying tokens to want tokens.
+    /// @return Want received amounts.
+    function _swapAllUnderlyingsToWant(uint256[] memory _amounts) internal returns (uint256[] memory) {
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            IERC20(underlyings[i]).safeApprove(router, 0);
+            IERC20(underlyings[i]).safeApprove(router, _amounts[i]);
+        }
+
+        // These amounts of tokens is calculated for LP purchase in two pools
+        uint256 usdcPart = _amounts[0] / 2; // so we divide it by two here
+        uint256 usdtPart = _amounts[1] / 2;
+
+        //Get USDC-USDT LP token
+        IUniswapV2Router01(router).addLiquidity(
+            address(underlyings[0]),
+            address(underlyings[1]),
+            usdcPart,
+            usdtPart,
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        //Get USDC-DAI LP token
+        IUniswapV2Router01(router).addLiquidity(
+            address(underlyings[0]),
+            address(underlyings[2]),
+            usdcPart,
+            _amounts[2],
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        //Get USDT-MAI LP token
+        IUniswapV2Router01(router).addLiquidity(
+            address(underlyings[1]),
+            address(underlyings[3]),
+            usdtPart,
+            _amounts[3],
+            0,
+            0,
+            address(this),
+            block.timestamp + 1
+        );
+
+        uint256[] memory wantBalances = new uint256[](wantTokens.length);
+        for (uint256 i = 0; i < wantTokens.length; i++) {
+            wantBalances[i] = wantTokens[i].balanceOf(address(this));
+        }
+
+        return wantBalances;
+    }
+}

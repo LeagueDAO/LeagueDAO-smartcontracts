@@ -1,0 +1,28 @@
+name: Main workflow
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # run this workflow every Monday at 1PM UTC
+    - cron: "* 13 * * 1"
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: NPM installation
+        run: npm install
+
+      - name: Run tests
+        run: npm test

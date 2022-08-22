@@ -1,0 +1,39 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "cardImageToExistence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_cardImageId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "_existence",
+        "type": "bool"
+      }
+    ],
+    "name": "setCardImageToExistence",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

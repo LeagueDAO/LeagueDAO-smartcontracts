@@ -1,0 +1,15 @@
+[
+  {
+    "inputs": [],
+    "name": "requestRandomNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_random",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

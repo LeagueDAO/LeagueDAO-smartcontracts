@@ -1,0 +1,13 @@
+.*
+abi
+artifacts
+bin
+cache
+contracts
+coverage*
+docgen
+docs
+json_inputs
+node_modules
+hardhat.config.js
+scripts/flatten/

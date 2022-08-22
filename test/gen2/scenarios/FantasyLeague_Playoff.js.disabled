@@ -1,0 +1,251 @@
+/* eslint-disable */
+const { expect, use, should } = require("chai");
+const { ethers, waffle, upgrades } = require("hardhat");
+const { describe } = require("mocha");
+const { solidity } = waffle;
+
+const { toBN, units, URL_EXAMPLE, time, snapshot, getRandomInt, shuffleArray } = require("../helpers");
+
+const { AddressZero, Zero } = ethers.constants;
+
+// Extension of Chai for Solidity (emit, closeTo, etc.)
+use(solidity);
+should();
+
+//// module.exports.networks.hardhat.accounts.count = 30;
+
+describe("Scenario. Main action for Fantasy League", function () {
+    let snapshotA;
+
+    let deployer, users;
+
+    let leagueAdmin;
+    let league, randGenerator, erc721, pointCalculator, rewardERC20;
+    let testAddress;
+
+    // Enum
+    const GameStage = {
+        UserAdding: 0,
+        UserShuffle: 1,
+        WaitingNextGame: 2,
+        H2HCompetitions: 3,
+        RewardPerPointCalculation: 4,
+        RewardsUpdate: 5,
+        WaitingSeeds: 6
+    };
+
+    const DEFAULT_DIVISION_SZ = +12;
+    const DEFAULT_BENCH_SZ = +6;
+    const DEFAULT_COMP_WEEK_NUM = +15;
+
+    let seasonID;
+
+    /*
+     * Here the team squad for the football league is used.
+     * 1 QB, 2 RB, 2 WR, 1 TE, 2 FLEX (RB/WR/TE), 2 DL (DT/DE), 2 LB (MLB/OLB), 2 DB (CB/FS/SS), 6 Bench.
+     */
+    let PlayerPosition = {
+        // QB, RB, WR, TE, DL, LB, DB
+        codes: [1, 2, 3, 4, 5, 6, 7],
+        numbers: [1, 2, 2, 1, 2, 2, 2],
+        flex: {
+            codes: [],
+            number: 2
+        },
+        benchSize: DEFAULT_BENCH_SZ
+    };
+    PlayerPosition.flex.codes = [PlayerPosition.codes[1], PlayerPosition.codes[2], PlayerPosition.codes[3]];
+    expect(PlayerPosition.codes.length).to.be.eq(PlayerPosition.numbers.length);
+    // Calculation of the team size
+    let teamSize = +0;
+    PlayerPosition.numbers.forEach((number) => {
+        teamSize += +number;
+    });
+    teamSize += +PlayerPosition.flex.number;
+    if (PlayerPosition.flex.codes > 0) expect(PlayerPosition.flex.codes.length).to.be.gt(0);
+
+    let userPlayers = [];
+
+    let totalWeekRewards = [];
+
+    // Enum
+    const CompetitionResult = {
+        FirstUserWon: 0,
+        SecondUserWon: 1,
+        Tie: 2
+    };
+
+    before(async () => {
+        const signers = await ethers.getSigners();
+        deployer = signers[0];
+
+        const userArrSize = +24;
+        users = signers.slice(1, userArrSize + 1);
+
+        // For the initialization of the Fantasy League contract
+        testAddress = signers[userArrSize + 1];
+    });
+
+    describe("[# 2. Deployment of the Fantasy League contract]", function () {
+        it("Deployment and intialization of the FantasyLeague contract via proxy", async () => {
+            const FantasyLeague = await ethers.getContractFactory("FantasyLeagueMock");
+
+            leagueAdmin = deployer;
+
+            league = await upgrades.deployProxy(FantasyLeague, [
+                leagueAdmin.address,
+                testAddress.address,
+                testAddress.address,
+                testAddress.address,
+                [testAddress.address]
+            ]);
+            await league.deployed();
+            snapshotA = await snapshot();
+        });
+    });
+    describe("[# 2. Test array shuffle]", function () {
+        afterEach(async () => await snapshotA.restore());
+
+        it(`Division should be updated if passed valid array`, async () => {
+            await league.setNewUsersList(users.map((user) => user.address));
+            const division1 = await league.getDivisionUsers(0, 0);
+            const division2 = await league.getDivisionUsers(0, 1);
+            const division1Scores = {};
+            const division2Scores = {};
+            shuffleArray(division1);
+            shuffleArray(division2);
+            for (let i = 0; i < division1.length; i++) {
+                const user1 = division1[i];
+                const user2 = division2[i];
+
+                division1Scores[user1] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                division2Scores[user2] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                const score1 = division1Scores[user1];
+                const score2 = division2Scores[user2];
+                await league.setUserSeasonStats(user1, 0, score1.wins, score1.losses, score1.ties, score1.points);
+                await league.setUserSeasonStats(user2, 0, score2.wins, score2.losses, score2.ties, score2.points);
+            }
+
+            await league.setGameStage(GameStage.WaitingSeeds);
+
+            (await league.divisionPointer()).should.equal(0);
+
+            (await league.setSortedOrderToDivision(division1)).should
+                .emit(league, "DivisionUpdatedForPlayOff")
+                .withArgs(0, 0);
+
+            (await league.divisionPointer()).should.equal(1);
+
+            (await league.setSortedOrderToDivision(division2)).should
+                .emit(league, "DivisionUpdatedForPlayOff")
+                .withArgs(0, 1);
+
+            (await league.divisionPointer()).should.equal(0);
+
+            const updatedDivision1 = await league.getDivisionUsers(0, 0);
+            const updatedDivision2 = await league.getDivisionUsers(0, 1);
+
+            updatedDivision1.should.eql(division1);
+            updatedDivision2.should.eql(division2);
+
+            (await league.divisionPointer()).should.equal(0);
+        });
+
+        it(`Should fail if passed array with wrong length`, async () => {
+            await league.setGameStage(GameStage.WaitingSeeds);
+            await league.setSortedOrderToDivision([users[0].address]).should.be.revertedWith("Wrong array size");
+        });
+        it(`Should fail if passed different set of addresses in the array`, async () => {
+            await league.setNewUsersList(users.map((user) => user.address));
+            const division1 = await league.getDivisionUsers(0, 0);
+            const division2 = await league.getDivisionUsers(0, 1);
+            const division1Scores = {};
+            const division2Scores = {};
+            shuffleArray(division1);
+            shuffleArray(division2);
+            for (let i = 0; i < division1.length; i++) {
+                const user1 = division1[i];
+                const user2 = division2[i];
+
+                division1Scores[user1] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                division2Scores[user2] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                const score1 = division1Scores[user1];
+                const score2 = division2Scores[user2];
+                await league.setUserSeasonStats(user1, 0, score1.wins, score1.losses, score1.ties, score1.points);
+                await league.setUserSeasonStats(user2, 0, score2.wins, score2.losses, score2.ties, score2.points);
+            }
+
+            // const temp = division1[0];
+            // division1[0] = division1[division1.length - 1];
+            // division1[division1.length - 1] = temp;
+
+            await league.setGameStage(GameStage.WaitingSeeds);
+            // await league.setSortedOrderToDivision(division1).should.be.revertedWith("Bad seeds");
+            await league.setSortedOrderToDivision(division2).should.be.revertedWith("Check failed, different arrays");
+        });
+
+        it(`Should fail if not WaitingSeeds stage`, async () => {
+            await league
+                .setSortedOrderToDivision([users[0].address])
+                .should.be.revertedWith("This is not available at the current stage of the game");
+        });
+        it(`Should fail if passed not sorted array`, async () => {
+            await league.setNewUsersList(users.map((user) => user.address));
+            const division1 = await league.getDivisionUsers(0, 0);
+            const division2 = await league.getDivisionUsers(0, 1);
+            const division1Scores = {};
+            const division2Scores = {};
+            shuffleArray(division1);
+            shuffleArray(division2);
+            for (let i = 0; i < division1.length; i++) {
+                const user1 = division1[i];
+                const user2 = division2[i];
+
+                division1Scores[user1] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                division2Scores[user2] = {
+                    wins: 20 - i,
+                    losses: i,
+                    ties: i,
+                    points: 40 - i
+                };
+                const score1 = division1Scores[user1];
+                const score2 = division2Scores[user2];
+                await league.setUserSeasonStats(user1, 0, score1.wins, score1.losses, score1.ties, score1.points);
+                await league.setUserSeasonStats(user2, 0, score2.wins, score2.losses, score2.ties, score2.points);
+            }
+
+            const temp = division1[0];
+            division1[0] = division1[1];
+            division1[1] = temp;
+
+            await league.setGameStage(GameStage.WaitingSeeds);
+            await league.setSortedOrderToDivision(division1).should.be.revertedWith("Bad seeds");
+            // await league.setSortedOrderToDivision(division2).should.be.revertedWith("Check failed, different arrays");
+        });
+    });
+});

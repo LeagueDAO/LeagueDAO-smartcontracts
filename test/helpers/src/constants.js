@@ -1,0 +1,5 @@
+const ADDR_FIRST = "0x0000000000000000000000000000000000000001";
+
+const URL_EXAMPLE = "http://info.cern.ch/";
+
+module.exports = { ADDR_FIRST, URL_EXAMPLE };

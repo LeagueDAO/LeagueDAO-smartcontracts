@@ -1,0 +1,1677 @@
+[
+  {
+    "inputs": [],
+    "name": "ArrayLengthIsNotDivisionSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ArraysLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DivisionNumberIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DivisionWinnersNumberIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EndIndexIsOutOfDivisionWinnersNumber",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectAddressDivisionId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectFinancialManager",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectGameStage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectGameStageChange",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectGameStageDirectionChange",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectSorting",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InputLengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotALeaguePassNFTContract",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotARewardToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotAUserShuffleGameStage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NumberOfUsersIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NumberOfUsersToShuffleIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyH2HStage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RandNumberIsNotUpdated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ShuffleIsCompleted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "StartIndexIsGreaterThanEndIndex",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenAlreadyInTheList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownRewardToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnknownUser",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UserIsAlreadyAdded",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "UserSelfcomparing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_seasonId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_divisionId",
+        "type": "uint256"
+      }
+    ],
+    "name": "CompetitorsSelectedFromDivision",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_winner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_accumulatedRewards",
+        "type": "uint256"
+      }
+    ],
+    "name": "DivisionWinnerRewardsCalculated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_financialManager",
+        "type": "address"
+      }
+    ],
+    "name": "FinancialManagerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum GameProgress.GameStage",
+        "name": "_gs",
+        "type": "uint8"
+      }
+    ],
+    "name": "GameStageMovedTo",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_firstUser",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_secondUser",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum CompetitionResult",
+        "name": "_competitionResult",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_week",
+        "type": "uint256"
+      }
+    ],
+    "name": "H2HCompetitionResult",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_leaguePassNFT",
+        "type": "address"
+      }
+    ],
+    "name": "LeaguePassNFTSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_randomNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "RandNumberUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_generator",
+        "type": "address"
+      }
+    ],
+    "name": "RandomGeneratorSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_rewardERC20",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_rewardPerPoint",
+        "type": "uint256"
+      }
+    ],
+    "name": "RewardPerPointCalcutated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "RewardTokenAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "RewardTokenRemoved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "RewardWithdrawn",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "previousAdminRole",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "newAdminRole",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RoleAdminChanged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "RoleGranted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "RoleRevoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_scheduler",
+        "type": "address"
+      }
+    ],
+    "name": "SchedulerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_seasonId",
+        "type": "uint256"
+      }
+    ],
+    "name": "SeasonFinished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_teamManager",
+        "type": "address"
+      }
+    ],
+    "name": "TeamManagerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_week",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "TotalWeekRewardSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_seasonId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "name": "UserAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_weekRewards",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_accumulatedRewards",
+        "type": "uint256"
+      }
+    ],
+    "name": "UserRewardsUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "DEFAULT_ADMIN_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "DIVISION_SIZE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "H2H_COMPETITION_WEEK_NUM",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MULTISIG_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PLAYOFF_COMPETITION_WEEK_NUM",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PLAYOFF_COMPETITOR_NUM",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "accumulatedRewards",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "addRewardToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_sortedDivision",
+        "type": "address[]"
+      }
+    ],
+    "name": "addSortedPlayoffDivision",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_sortedDivisions",
+        "type": "address[]"
+      }
+    ],
+    "name": "addSortedPlayoffDivisions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "name": "addUser",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numberOfDivisionWinners",
+        "type": "uint256"
+      }
+    ],
+    "name": "calculatePlayoffRewards",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "calculateRewardPerPoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_firstUser",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_secondUser",
+        "type": "address"
+      }
+    ],
+    "name": "compareUsers",
+    "outputs": [
+      {
+        "internalType": "enum CompetitionResult",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numberOfDivisions",
+        "type": "uint256"
+      }
+    ],
+    "name": "competeH2Hs",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numberOfDivisions",
+        "type": "uint256"
+      }
+    ],
+    "name": "competePlayoffs",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "divisionsWinners",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "financialManager",
+    "outputs": [
+      {
+        "internalType": "contract IFinancialManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "gamesStats",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "totalPoints",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "generator",
+    "outputs": [
+      {
+        "internalType": "contract INomoRNG",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getCurrentWeek",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_divisionId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getDivisionUsers",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "division",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getGameStage",
+    "outputs": [
+      {
+        "internalType": "enum GameProgress.GameStage",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getNumberOfDivisions",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getNumberOfUsers",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_week",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "getRewardPerPoint",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getRewardTokens",
+    "outputs": [
+      {
+        "internalType": "contract IERC20Upgradeable[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getRoleAdmin",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getSeasonId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_from",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_to",
+        "type": "uint256"
+      }
+    ],
+    "name": "getSomeDivisionWinners",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "divisionWinners",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_from",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_to",
+        "type": "uint256"
+      }
+    ],
+    "name": "getSomeDivisionWinnersStats",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "totalPoints",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint32",
+            "name": "wins",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "ties",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct DivisionWinnerStats[]",
+        "name": "divisionWinnersStats",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_week",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "getTotalWeekRewards",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      }
+    ],
+    "name": "getUserDivisionId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_season",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_week",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "getUserWeekReward",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "grantRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "hasRole",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "isRewardToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "isUser",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "leaguePassNFT",
+    "outputs": [
+      {
+        "internalType": "contract ILeaguePassNFT",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextProcessedDivisionId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextUserWithUpdRews",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "playoffCompetitors",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "randNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "removeRewardToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "renounceRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "revokeRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "rewardTokens",
+    "outputs": [
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "scheduler",
+    "outputs": [
+      {
+        "internalType": "contract IScheduler",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "seasonId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_financialManager",
+        "type": "address"
+      }
+    ],
+    "name": "setFinancialManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_leaguePassNFT",
+        "type": "address"
+      }
+    ],
+    "name": "setLeaguePassNFT",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_generator",
+        "type": "address"
+      }
+    ],
+    "name": "setRandGenerator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_scheduler",
+        "type": "address"
+      }
+    ],
+    "name": "setScheduler",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_teamManager",
+        "type": "address"
+      }
+    ],
+    "name": "setTeamManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC20Upgradeable",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setTotalWeekReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numberToShuffle",
+        "type": "uint256"
+      }
+    ],
+    "name": "shuffleUsers",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "shuffledUserNum",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes4",
+        "name": "interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "teamManager",
+    "outputs": [
+      {
+        "internalType": "contract ITeamManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "updateRandNum",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numberOfUsers",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateRewardsForUsers",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "userSeasonStats",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "wins",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "losses",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "ties",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPoints",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "userWeeklyStats",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "points",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWinner",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "users",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawRewards",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

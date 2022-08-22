@@ -1,0 +1,591 @@
+const { expect, use } = require("chai");
+const { ethers, waffle, upgrades } = require("hardhat");
+const { solidity } = waffle;
+
+const { toBN, units, URL_EXAMPLE, time, snapshot } = require("../../helpers");
+
+const { AddressZero, Zero, MaxUint256 } = ethers.constants;
+
+// Extension of Chai for Solidity (emit, closeTo, etc.)
+use(solidity);
+
+//// module.exports.networks.hardhat.accounts.count = 30;
+
+describe.skip("Scenario. Main action for Fantasy League", function () {
+    let snapshotA;
+
+    let deployer, users;
+
+    let leagueAdmin, teamManagerAdmin;
+    let league,
+        teamManager,
+        randGenerator,
+        gen2PlayerToken,
+        pointCalculator,
+        rewardERC20,
+        nomoNFT,
+        teamsStakingDeadlines;
+    let falseLeaguePass, falseMultisig;
+
+    // Enum
+    const GameStage = {
+        UserAdding: 0,
+        UserShuffle: 1,
+        WaitingNextGame: 2,
+        H2HCompetitions: 3,
+        RewardPerPointCalculation: 4,
+        RewardsUpdate: 5
+    };
+
+    const DEFAULT_DIVISION_SZ = +12;
+    const DEFAULT_COMP_WEEK_NUM = +15;
+
+    let seasonID;
+
+    /*
+     * Here the team squad for the football league is used.
+     * 1 QB, 2 RB, 2 WR, 1 TE, 2 FLEX (RB/WR/TE), 2 DL (DT/DE), 2 LB (MLB/OLB), 2 DB (CB/FS/SS).
+     */
+    let PlayerPosition = {
+        // QB, RB, WR, TE, DL, LB, DB
+        codes: [1, 2, 3, 4, 5, 6, 7],
+        numbers: [1, 2, 2, 1, 2, 2, 2],
+        flex: {
+            codes: [],
+            number: 2
+        }
+    };
+    PlayerPosition.flex.codes = [PlayerPosition.codes[1], PlayerPosition.codes[2], PlayerPosition.codes[3]];
+    expect(PlayerPosition.codes.length).to.be.eq(PlayerPosition.numbers.length);
+    // Calculation of the team size
+    let teamSize = +0;
+    PlayerPosition.numbers.forEach((number) => {
+        teamSize += +number;
+    });
+    teamSize += +PlayerPosition.flex.number;
+    if (PlayerPosition.flex.codes > 0) expect(PlayerPosition.flex.codes.length).to.be.gt(0);
+
+    let userPlayers = [];
+
+    let totalWeekRewards = [];
+
+    // Enum
+    const CompetitionResult = {
+        FirstUserWon: 0,
+        SecondUserWon: 1,
+        Tie: 2
+    };
+
+    before(async () => {
+        const signers = await ethers.getSigners();
+        deployer = signers[0];
+
+        const userArrSize = +24;
+        users = signers.slice(1, userArrSize + 1);
+
+        // For the initialization of the Fantasy League contract
+        falseLeaguePass = signers[userArrSize + 1];
+        falseMultisig = signers[userArrSize + 2];
+    });
+
+    describe("[# 1. Deployments for the Fantasy League contract]", function () {
+        it("Random Generator", async () => {
+            const RandGeneratorMock = await ethers.getContractFactory("RandGeneratorMock");
+            randGenerator = await RandGeneratorMock.deploy();
+            await randGenerator.deployTransaction.wait();
+        });
+
+        it("Second generation player ERC721 token", async () => {
+            const Gen2PlayerTokenMock = await ethers.getContractFactory("Gen2PlayerTokenMock");
+            gen2PlayerToken = await Gen2PlayerTokenMock.deploy();
+            await gen2PlayerToken.deployTransaction.wait();
+        });
+
+        it("Point Calculator", async () => {
+            const Gen2PointsCalculatorMock = await ethers.getContractFactory("Gen2PointsCalculatorMock");
+            pointCalculator = await Gen2PointsCalculatorMock.deploy();
+            await pointCalculator.deployTransaction.wait();
+        });
+
+        it("ERC20 reward token", async () => {
+            const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
+            rewardERC20 = await ERC20Mock.deploy();
+            await rewardERC20.deployTransaction.wait();
+        });
+
+        it("NomoNFT", async () => {
+            const NomoNFTMock = await ethers.getContractFactory("NomoNFTMock");
+            nomoNFT = await NomoNFTMock.deploy();
+            await nomoNFT.deployTransaction.wait();
+        });
+
+        it("TeamsStakingDeadlines with setting the first team deadline", async () => {
+            const TeamsStakingDeadlines = await ethers.getContractFactory("TeamsStakingDeadlines");
+            teamsStakingDeadlines = await upgrades.deployProxy(TeamsStakingDeadlines, [nomoNFT.address]);
+            await teamsStakingDeadlines.deployed();
+
+            // Setting of team deadline for the first team
+            await teamsStakingDeadlines.setTeamDeadline(1, MaxUint256);
+        });
+    });
+
+    describe("[# 2. Deployment of the Fantasy League and Team Manager contracts]", function () {
+        it("Deployment and initialization of the FantasyLeague contract via proxy", async () => {
+            const FantasyLeague = await ethers.getContractFactory("FantasyLeague");
+            league = await upgrades.deployProxy(FantasyLeague, [
+                falseLeaguePass.address, // Generator
+                randGenerator.address, // Scheduler
+                falseMultisig.address,
+                [rewardERC20.address]
+            ]);
+            await league.deployed();
+
+            leagueAdmin = deployer;
+
+            // Getting and check of season ID
+            seasonID = await league.getSeasonId();
+            expect(seasonID).to.be.eq(0);
+
+            // Check of event emissions after the initialization
+            const receipt = league.deployTransaction;
+            await expect(receipt).to.emit(league, "GameStageMovedTo").withArgs(GameStage.UserAdding);
+            await expect(receipt)
+                .to.emit(league, "RoleGranted")
+                .withArgs(await league.DEFAULT_ADMIN_ROLE(), deployer.address, deployer.address);
+            // await expect(receipt).to.emit(league, "DivisionSizeSet").withArgs(DEFAULT_DIVISION_SZ);
+            await expect(receipt).to.emit(league, "RandomGeneratorSet").withArgs(randGenerator.address);
+            // await expect(receipt).to.emit(league, "H2HCompetitionWeekNumberSet").withArgs(DEFAULT_COMP_WEEK_NUM);
+
+            // Check of values after the initialization
+            expect(await league.rewardTokens(0)).to.be.eq(rewardERC20.address);
+        });
+
+        it("Deployment and initialization of the TeamManager contract via proxy", async () => {
+            const TeamManager = await ethers.getContractFactory("TeamManager");
+            teamManager = await upgrades.deployProxy(TeamManager, [
+                gen2PlayerToken.address,
+                teamsStakingDeadlines.address,
+                pointCalculator.address
+            ]);
+            await teamManager.deployed();
+
+            teamManagerAdmin = deployer;
+
+            // Check of season ID
+            const seasonID = await teamManager.seasonId();
+            expect(seasonID).to.be.eq(0);
+
+            // Check of event emissions after the initialization
+            const receipt = teamManager.deployTransaction;
+            await expect(receipt)
+                .to.emit(teamManager, "RoleGranted")
+                .withArgs(await league.DEFAULT_ADMIN_ROLE(), deployer.address, deployer.address);
+            await expect(receipt).to.emit(teamManager, "Gen2PlayerTokenSet").withArgs(gen2PlayerToken.address);
+            await expect(receipt).to.emit(teamManager, "CalculatorSet").withArgs(pointCalculator.address);
+        });
+
+        it("Connecting of the Fantasy League and Team Manager contracts to each other", async () => {
+            // Setting of the Fantasy League in the Team Manager
+            let res = await teamManager.connect(teamManagerAdmin).setFantasyLeague(league.address);
+            await expect(res).to.emit(teamManager, "FantasyLeagueSet").withArgs(league.address);
+
+            expect(await teamManager.fantasyLeague()).to.be.eq(league.address);
+
+            // Check of season ID
+            const seasonID = await teamManager.seasonId();
+            expect(seasonID).to.be.eq(0);
+
+            // Setting of the Team Manager in the Fantasy League
+            res = await league.connect(leagueAdmin).setTeamManager(teamManager.address);
+            await expect(res).to.emit(league, "TeamManagerSet").withArgs(teamManager.address);
+            await expect(res).to.emit(teamManager, "SeasonIdUpdated").withArgs(seasonID);
+
+            expect(await league.teamManager()).to.be.eq(teamManager.address);
+        });
+    });
+
+    describe("[# 3. Stages that are performed once a season]", function () {
+        it("Adding of users to the Fantasy League", async () => {
+            let tx;
+            for (let i = 0; i < users.length; ++i) {
+                // Adding
+                tx = await league.connect(falseLeaguePass).addUser(users[i].address);
+
+                // Check of an event emission
+                await expect(tx).to.emit(league, "UserAdded").withArgs(seasonID, users[i].address);
+
+                // Check of values
+                expect(await league.isUser(seasonID, users[i].address)).to.be.true;
+                expect(await league.users(seasonID, i)).to.be.eq(users[i].address);
+            }
+        });
+
+        it("Update of the random number in the Fantasy League", async () => {
+            const randNumber = await league.randNumber();
+            expect(randNumber).to.be.eq(0);
+
+            const tx = await league.updateRandNum();
+            await expect(tx).to.emit(league, "RandNumberUpdated");
+
+            expect(await league.randNumber()).to.be.not.eq(randNumber);
+        });
+
+        it("Shuffle of users of the Fantasy League", async () => {
+            // Saving of users before shuffle
+            let divisions = [];
+            divisions.push(await league.getDivisionUsers(seasonID, 0));
+            divisions.push(await league.getDivisionUsers(seasonID, 1));
+
+            // First shuffle
+            const numberToShuffle = await league.getNumberOfUsers();
+            // Checking that all divisions are full
+            expect(numberToShuffle.mod(DEFAULT_DIVISION_SZ)).to.be.eq(0);
+            let tx = await league.shuffleUsers(numberToShuffle.div(2));
+
+            // Check of event emissions
+            await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.UserShuffle);
+            await expect(tx).to.not.emit(league, "ShuffleEnd");
+            // Check of events witch have the `_gs` parameter
+            const receipt = await tx.wait();
+            receipt.events.forEach((event) => {
+                if (event.args !== undefined && event.args._gs !== undefined)
+                    expect(event.args._gs).to.be.not.eq(GameStage.WaitingNextGame);
+            });
+
+            // Second shuffle
+            tx = await league.shuffleUsers(numberToShuffle.div(2));
+            await expect(tx).to.emit(league, "ShuffleEnd");
+            await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.WaitingNextGame);
+
+            // This is not a reliable check. In addition, hypothetically, the arrays may be coincident after shuffling
+            expect(divisions[0]).to.be.not.deep.eq(await league.getDivisionUsers(seasonID, 0));
+            expect(divisions[1]).to.be.not.deep.eq(await league.getDivisionUsers(seasonID, 1));
+        });
+
+        // prettier-ignore
+        it("Imitation of the draft of Gen2 player NF tokens by users", async () => {
+            // TODO Modify Gen2 player token mock after adding of check in Staker contract (FantasyLeague)
+
+            async function mintPlayer(userAddr) {
+                const tx = await gen2PlayerToken.connect(deployer).mint(userAddr);
+                const receipt = await tx.wait();
+                const tokenID = receipt.events[0].args.tokenId;
+                return tokenID;
+            }
+
+            async function mintTeam(userAddr) {
+                // Mint
+                let i;
+                const mintNumber = teamSize;
+                let userNFTs = [];
+                for (i = 0; i < mintNumber; ++i)
+                    userNFTs.push(await mintPlayer(userAddr));
+
+                // Setting of positions
+                // Positions
+                let playerIter = 0;
+                let j;
+                for (i = 0; i < PlayerPosition.codes.length; ++i) {
+                    for (j = 0; j < PlayerPosition.numbers[i]; ++j) {
+                        await gen2PlayerToken.setTokenPosition(userNFTs[playerIter], PlayerPosition.codes[i]);
+                        ++playerIter;
+                    }
+                }
+                // Flex
+                for (i = 0; i < PlayerPosition.flex.number; ++i) {
+                    await gen2PlayerToken.setTokenPosition(userNFTs[playerIter], PlayerPosition.flex.codes[0]);
+                    ++playerIter;
+                }
+
+                // Setting of division IDs
+                const divisionID = await league.getUserDivisionId(seasonID, userAddr);
+                for (i = 0; i < userNFTs.length; ++i) {
+                    await gen2PlayerToken.setNftIdToDivisionId(userNFTs[i], divisionID);
+                    ++playerIter;
+                }
+
+                /*
+                 * Using tokens as CardImagesIds set their existence to true,
+                 * so teamsStakingDeadline contract can verify that we are passing valid CardImagesIds.
+                 */
+                for (i = 0; i < userNFTs.length; ++i)
+                    await nomoNFT.setCardImageToExistence(userNFTs[i], true);
+
+                // Setting of the team
+                const teamID = 1;
+                for (i = 0; i < userNFTs.length; ++i)
+                    await teamsStakingDeadlines.setCardImageToTeam(userNFTs[i], teamID);
+
+                return userNFTs;
+            }
+
+            // Mint of player tokens with required positions
+            for (let i = 0; i < users.length; ++i)
+                userPlayers.push(await mintTeam(users[i].address));
+        });
+
+        it("Setting of player position limits for staking", async () => {
+            // Positions
+            let i;
+            let tx;
+            for (i = 0; i < PlayerPosition.codes.length; ++i) {
+                tx = await teamManager.setPositionNumber(PlayerPosition.codes[i], PlayerPosition.numbers[i]);
+                await expect(tx)
+                    .to.emit(teamManager, "PositionNumberSet")
+                    .withArgs(seasonID, PlayerPosition.codes[i], PlayerPosition.numbers[i]);
+
+                expect(await teamManager.positionNumber(seasonID, PlayerPosition.codes[i])).to.be.eq(
+                    PlayerPosition.numbers[i]
+                );
+            }
+
+            // Flex positions
+            const isFlexPosition = true;
+            for (i = 0; i < PlayerPosition.flex.codes.length; ++i) {
+                tx = await teamManager.setFlexPosition(PlayerPosition.flex.codes[i], isFlexPosition);
+                await expect(tx)
+                    .to.emit(teamManager, "FlexPositionSet")
+                    .withArgs(seasonID, PlayerPosition.flex.codes[i], isFlexPosition);
+
+                expect(await teamManager.isFlexPosition(seasonID, PlayerPosition.flex.codes[i])).to.be.eq(
+                    isFlexPosition
+                );
+            }
+
+            // Flex position number
+            tx = await teamManager.setFlexPositionNumber(PlayerPosition.flex.number);
+            await expect(tx)
+                .to.emit(teamManager, "FlexPositionNumberSet")
+                .withArgs(seasonID, PlayerPosition.flex.number);
+
+            expect(await teamManager.flexPositionNumber(seasonID)).to.be.eq(PlayerPosition.flex.number);
+        });
+
+        it("Set staking", async () => {});
+    });
+
+    describe("[# 4. Stages of weekly competitions]", function () {
+        it("Start of the game of the Fantasy League", async () => {
+            expect(await league.getCurrentWeek()).to.be.eq(0);
+
+            const tx = await league.nextGame(totalWeekRewards);
+            await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.H2HCompetitions);
+            const currentWeek = 1;
+            await expect(tx).to.emit(league, "H2HCompetitionWeekStarted").withArgs(currentWeek);
+            await expect(tx)
+                .to.emit(teamManager, "CurrentGameStartTimeSet")
+                .withArgs(await time.latest());
+
+            expect(await league.getCurrentWeek()).to.be.eq(currentWeek);
+            expect(await teamManager.currentGameStartTime()).to.be.closeTo(toBN(await time.latest()), 10);
+        });
+
+        describe("[Loop of H2H competitions]", function () {
+            it("Staking of players by users", async () => {
+                let j;
+                let tx;
+                for (let i = 0; i < users.length; ++i) {
+                    // Team
+                    for (j = 0; j < teamSize; ++j) {
+                        await gen2PlayerToken.connect(users[i]).approve(teamManager.address, userPlayers[i][j]);
+                        tx = await teamManager.connect(users[i]).stakePlayer(userPlayers[i][j]);
+                        await expect(tx)
+                            .to.emit(teamManager, "PlayerStaked")
+                            .withArgs(seasonID, users[i].address, userPlayers[i][j]);
+                        //// TODO Check of values in storage
+                    }
+
+                    // Check of values
+                    expect(await teamManager.getStakedPlayersOfUser(seasonID, users[i].address)).to.be.deep.eq(
+                        userPlayers[i].slice(0, teamSize)
+                    );
+                }
+            });
+
+            it("Imitation of the update of players' points", async () => {
+                /*
+                 * Here the setting of points for players is bluntly ascending through a token ID. That is, the first user
+                 * will have the least points, and the last user will have the most points. Since before that the players
+                 * were minted to users in order.
+                 */
+                let j;
+                const playerNumber = teamSize;
+                for (let i = 0; i < users.length; ++i)
+                    for (j = 0; j < playerNumber; ++j)
+                        await pointCalculator.setPoints(userPlayers[i][j], userPlayers[i][j].add(1).mul(1000));
+            });
+
+            it("Head to Head competitions", async () => {
+                // ____ Auxiliary functions ____
+
+                // // Sorting of division users by schedule
+                // async function getSortedDivision(index) {
+                //     const currentWeek = await league.getCurrentWeek();
+                //     const weekSchedule = await league.weekSchedule(currentWeek);
+                //     let division = await league.getDivisionUsers(await league.getSeasonId(), index);
+                //     let sortedDivision = [];
+                //     for (let i = 0; i < weekSchedule.length; ++i)
+                //         sortedDivision.push(division[weekSchedule[i]]);
+                //     return sortedDivision;
+                // }
+
+                async function getUserPoints(userAddr) {
+                    const season = await teamManager.seasonId();
+                    const team = await teamManager.getStakedPlayersOfUser(season, userAddr);
+                    const gameStartTime = await teamManager.currentGameStartTime();
+                    let points = Zero;
+                    for (let i = 0; i < teamSize; ++i)
+                        points = points.add(await pointCalculator.calculatePoints(team[i], gameStartTime));
+                    return points;
+                }
+
+                async function getCompetitionResult(competitor1Addr, competitor2Addr) {
+                    const competitor1Points = await getUserPoints(competitor1Addr);
+                    const competitor2Points = await getUserPoints(competitor2Addr);
+                    if (competitor1Points.gt(competitor2Points)) return CompetitionResult.FirstUserWon;
+                    if (competitor1Points.lt(competitor2Points)) return CompetitionResult.SecondUserWon;
+                    return CompetitionResult.Tie;
+                }
+
+                // ____ Head to Head competitions ____
+
+                // Variables for the loop of competitions
+                const divisionNumber = await league.getNumberOfDivisions();
+                let tx;
+                const divisionsPerTransaction = 1;
+
+                // Variables for the loop of event check
+                let division = [],
+                    sortedDivision = [];
+                let j;
+                const currentWeek = await league.getCurrentWeek(); // 1
+                const weekSchedule = await league.weekSchedule(currentWeek);
+                let competitor1Addr, competitor2Addr, result;
+
+                for (let i = 0; i < divisionNumber; ++i) {
+                    // Week competitions
+                    tx = await league.connect(leagueAdmin).competeH2Hs(divisionsPerTransaction);
+
+                    // ____ Check of competition result events ____
+
+                    // Sorting of division users by schedule
+                    division = await league.getDivisionUsers(await league.getSeasonId(), i);
+                    sortedDivision = [];
+                    // prettier-ignore
+                    for (j = 0; j < weekSchedule.length; ++j)
+                        sortedDivision.push(division[weekSchedule[j]]);
+
+                    // Check of each competition result event
+                    for (j = 0; j < sortedDivision.length; j += 2) {
+                        // Getting of a competition result
+                        competitor1Addr = sortedDivision[j];
+                        competitor2Addr = sortedDivision[j + 1];
+                        result = await getCompetitionResult(competitor1Addr, competitor2Addr);
+
+                        // Check of event
+                        await expect(tx)
+                            .to.emit(league, "H2HCompetitionResult")
+                            .withArgs(competitor1Addr, competitor2Addr, result, currentWeek);
+                    }
+
+                    // ____ Check of values ____
+                    ////
+                }
+                // For the last transaction
+                await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.RewardPerPointCalculation);
+            });
+
+            it("Imitation of receiving of reward tokens by Multisig", async () => {
+                totalWeekRewards.push(units(1000));
+                await rewardERC20.mint(falseMultisig.address, totalWeekRewards[0]);
+
+                await rewardERC20.connect(falseMultisig).approve(league.address, totalWeekRewards[0]);
+                await league.connect(falseMultisig).setTotalWeekReward(rewardERC20.address, totalWeekRewards[0]);
+
+                const currentWeek = 1;
+                expect(await league.getTotalWeekRewards(seasonID, currentWeek, rewardERC20.address)).to.be.eq(
+                    totalWeekRewards[0]
+                );
+            });
+
+            it("Calculation of a reward rate value", async () => {
+                // Calculation
+                const tx = await league.connect(leagueAdmin).calculateRewardPerPoint();
+
+                // Check of events
+                const rewardTokens = await league.getRewardTokens();
+                const currentWeek = await league.getCurrentWeek();
+                let rates = new Array(rewardTokens.length).fill(Zero);
+                for (let i = 0; i < rewardTokens.length; ++i) {
+                    // rate == total_week_rewards_for_the_reward_ERC20_token / total_week_points
+                    rates[i] = (await league.getTotalWeekRewards(seasonID, currentWeek, rewardTokens[i])).div(
+                        await league.gamesStats(seasonID, currentWeek)
+                    );
+                    await expect(tx).to.emit(league, "RewardPerPointCalcutated").withArgs(rewardTokens[i], rates[i]);
+                }
+                await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.RewardsUpdate);
+
+                // Check of value
+                ////
+            });
+
+            it("Update of rewards for users", async () => {
+                // Variables for the loop of reward update
+                let tx;
+                const usersPerTransaction = +12;
+                const iterNumber = users.length / usersPerTransaction;
+
+                // Variables for the loop of event check
+                let offset; // Offset in the array of users
+                let j, k;
+                const rewardTokens = await league.getRewardTokens();
+                let rewardPerPoint, userAddr, userPoints, userWeekReward;
+                const currentWeek = await league.getCurrentWeek();
+
+                // Variables for the check of values
+                let totalRewards = new Array(rewardTokens.length).fill(Zero);
+
+                for (let i = 0; i < iterNumber; ++i) {
+                    // Saving of value
+                    offset = (await league.nextUserWithUpdRews()).toNumber();
+
+                    // Reward update for the batch
+                    tx = await league.connect(leagueAdmin).updateRewardsForUsers(usersPerTransaction);
+
+                    // Check of events
+                    // For each user in the batch
+                    for (j = offset; j < usersPerTransaction + offset; ++j) {
+                        // For each reward token for a user
+                        for (k = 0; k < rewardTokens.length; ++k) {
+                            // Calculation of a reward for a user
+                            rewardPerPoint = await league.getRewardPerPoint(seasonID, currentWeek, rewardTokens[k]);
+                            userAddr = await league.users(seasonID, j);
+                            // Points from user week statistics, because there they were increased for the winners
+                            userPoints = (await league.userWeeklyStats(userAddr, seasonID, currentWeek)).points;
+                            userWeekReward = rewardPerPoint.mul(userPoints);
+
+                            // Summary of rewards to check the total reward value
+                            totalRewards[k] = totalRewards[k].add(userWeekReward);
+
+                            // Check of event
+                            await expect(tx)
+                                .to.emit(league, "UserRewardsUpdated")
+                                .withArgs(userAddr, rewardTokens[k], userWeekReward, userWeekReward);
+
+                            // Check of values
+                            ////
+                        }
+                    }
+
+                    // Check of values
+                    ////
+                }
+                // For the last transaction
+                await expect(tx).to.emit(league, "GameStageMovedTo").withArgs(GameStage.WaitingNextGame);
+
+                // Check of values
+                ////
+            });
+        });
+    });
+});

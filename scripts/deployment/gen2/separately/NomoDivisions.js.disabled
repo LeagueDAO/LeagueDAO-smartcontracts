@@ -1,0 +1,82 @@
+const { ethers, upgrades, network, run } = require("hardhat");
+const { getImplementationAddress } = require("@openzeppelin/upgrades-core");
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+    if (network.name !== "rinkeby") throw new Error("Not rinkeby");
+
+    const [admin] = await ethers.getSigners();
+
+    const RNG = await ethers.getContractFactory("contracts/gen2/NomoRNG.sol:NomoRNG");
+    const rngArgs = [
+        // rinkeby only!
+        "0x6168499c0cFfCaCD319c818142124B7A15E857ab",
+        "0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc",
+        3402
+    ];
+    const rng = await RNG.deploy(...rngArgs);
+    await rng.deployed();
+    console.log("RNG:", rng.address);
+
+    const NFT = await ethers.getContractFactory("ERC721Mock");
+    const nft = await NFT.deploy();
+    await nft.deployed();
+    console.log("NFT Mock:", nft.address);
+
+    const NomoDivisions = await ethers.getContractFactory("NomoDivisions");
+    const divisions = await upgrades.deployProxy(NomoDivisions, [
+        admin.address,
+        nft.address,
+        Math.round(Date.now() / 1000)
+    ]);
+    await divisions.deployed();
+    const address = await getImplementationAddress(ethers.provider, divisions.address);
+    console.log("NomoDivisions proxy address:", divisions.address);
+    console.log("NomoDivisions implementation address:", address);
+    console.log(
+        `Visit https://rinkeby.etherscan.io/proxyContractChecker?a=${divisions.address} to verify proxy on the Etherscan`
+    );
+
+    console.log("Set RNG");
+    await divisions.setRNG(rng.address);
+    console.log("Set requester");
+    await rng.setRequester(divisions.address, true);
+
+    console.log("Sleep 60sec...");
+    await sleep(60000);
+
+    try {
+        await run("verify:verify", {
+            address: nft.address
+        });
+    } catch (e) {
+        console.log(e.message);
+    }
+
+    try {
+        await run("verify:verify", {
+            address: rng.address,
+            constructorArguments: rngArgs
+        });
+    } catch (e) {
+        console.log(e.message);
+    }
+
+    try {
+        await run("verify:verify", {
+            address
+        });
+    } catch (e) {
+        console.log(e.message);
+    }
+}
+
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });

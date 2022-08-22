@@ -1,0 +1,54 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_randomNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "RandNumberUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_generator",
+        "type": "address"
+      }
+    ],
+    "name": "RandomGeneratorSet",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "generator",
+    "outputs": [
+      {
+        "internalType": "contract INomoRNG",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "randNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

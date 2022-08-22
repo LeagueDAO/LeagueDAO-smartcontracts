@@ -1,0 +1,67 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum GameProgress.GameStage",
+        "name": "_gs",
+        "type": "uint8"
+      }
+    ],
+    "name": "GameStageMovedTo",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_seasonId",
+        "type": "uint256"
+      }
+    ],
+    "name": "SeasonFinished",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "getGameStage",
+    "outputs": [
+      {
+        "internalType": "enum GameProgress.GameStage",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getSeasonId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "seasonId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
